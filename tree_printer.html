@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh_CN.utf8">
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+	<script src="http://libs.baidu.com/jquery/1.9.0/jquery.js"></script>
+	<script type="text/javascript">
+		var G = {
+			KEY_WIDTH : 5,	
+			KEY_HEIGHT : 10,
+			LEVEL_HEIGHT : 30
+		};
+
+		function error_abort(msg) {
+			console.log(msg);
+		}
+
+		function isnum(n) {
+			return '0' <= n && n <= '9';
+		}
+
+		function key_x_offset(offset, i) {
+			return offset + G.KEY_WIDTH * (2*i+1);
+		}
+
+		function y_offset(level) {
+			return G.LEVEL_HEIGHT * (level+1);
+		}
+
+		function draw_key(ctx, key, x, y) {
+			ctx.strokeText(key, x, y+G.KEY_HEIGHT);
+		}
+
+		function draw_box(ctx, x, y, w, h) {
+			ctx.fillStyle = '#bbbbbb';
+			var fixx = 8, fixy = 5;
+			ctx.fillRect(x, y, w+fixx, h+fixy);
+		}
+
+		function draw_line(ctx, x, y, x1, y1) {
+			ctx.beginPath();
+			ctx.moveTo(x, y);
+			ctx.lineTo(x1, y1);
+			ctx.stroke();
+		}
+
+		/* 将子元素字符串分割, 比如
+		 * '(1 2 3) 4 (5 6 7)' =>
+		 * ['(1 2 3)', 4, '(5 6 7)']
+		 */
+		function split_child(text) {
+			var elts = [];
+			var i = 0, j = 0;
+			while (i < text.length) {
+				// 遇到 '(', 寻找 ')'
+				if (text[i] == '(') {
+					j = i;	
+					var balance = false;
+					var nleft_bracket = 0, nright_bracket = 0;
+					while (j < text.length && !balance) {
+						if (text[j] == ')')
+							nright_bracket++;
+						if (text[j] == '(')
+							nleft_bracket++;
+						if (nright_bracket == nleft_bracket)
+							balance = true;
+						j++;
+					}
+					elts.push(text.substr(i, j-i));
+					i = j;
+				} else if (text[i] == ' ') {
+					i++;
+				} else if (isnum(text[i])) {
+					j = i;
+					while (isnum(text[j]) && j < text.length) 
+						j++;
+					elts.push(text.substr(i, j-i));
+					i = j;
+				} else {
+					elts = [];
+					error_abort('error' + text + '#' + i);
+					break;
+				}
+			}
+			return elts;
+		}
+
+		/*
+		 * W =  Wmax / K^level
+		 * INC = W / K
+		 * Off = X - (W / 2 - INC / 2) 
+		 */
+		function draw_tree_impl(ctx, text, x, y, level, max_child, max_level) {
+			var K = max_child;
+			var Wmax = (Math.pow(K, max_level) * 2 - 1) * G.KEY_WIDTH;
+			var W = Wmax / Math.pow(K, level);
+
+			var child_offset_inc = W / K;
+			var first_child_offset = x - (W/2 - child_offset_inc/2);
+
+			if (text[0] != '(') {
+				error_abort('tag not start with (| ' + text);
+				return ;		
+			}
+
+			if (text[text.length-1] != ')') {
+				error_abort('tag not end with )| ' + text);
+				return ;		
+			}
+
+			var box_width = (2*(max_child-1) - 1) * G.KEY_WIDTH; 
+			var box_height = G.KEY_HEIGHT;
+
+			draw_box(ctx, x, y_offset(level), box_width, box_height);
+
+			var elts = split_child(text.substr(1, text.length-2));
+
+			for (var i=0, key_idx=0, node_idx=0; i < elts.length; i++) {
+				if (elts[i][0] == '(') {
+					var node_offset = first_child_offset + child_offset_inc * key_idx;
+					draw_tree_impl(ctx, elts[i], node_offset, y_offset(level+1), level+1,
+						max_child, max_level);
+					draw_line(ctx, key_x_offset(x, key_idx), y_offset(level)+G.KEY_HEIGHT, node_offset+box_width/2, y_offset(level+1));
+					node_idx++;
+				} else {
+					draw_key(ctx, elts[i], key_x_offset(x, key_idx), y_offset(level));
+					key_idx++;
+				}
+			}
+		}
+
+		function max_of_arr(arr) {
+			if (!arr || arr.length == 0) {
+				return 0;
+			}
+
+			var max = arr[0];
+			for (var i = 1; i < arr.length; i++) {
+				if (arr[i] > max) 
+					max = arr[i];
+			}
+
+			return max;
+		}
+
+		function get_max_child(text) {
+			if (text[0] != '(' && text[text.length-1] != ')')
+				return 0;
+
+			var c = split_child(text.substr(1, text.length-2));
+			var key = 0;
+			var max_childs = [];
+
+			for (var i = 0; i < c.length; i++) {
+				if (c[i][0] == '(') {
+					max_childs.push(get_max_child(c[i]));
+				} else {
+					key++;
+				}
+			}
+
+			max_childs.push(key+1);
+
+			return max_of_arr(max_childs);
+		}
+
+		function get_max_level(text) {
+			if (text[0] != '(' && text[text.length-1] != ')')
+				return 0;
+
+			var c = split_child(text.substr(1, text.length-2));
+			var max_levels = [];
+
+			for (var i = 0; i < c.length; i++) {
+				if (c[i][0] == '(') {
+					max_levels.push(get_max_level(c[i]));
+				}
+			}
+			
+			if (max_levels.length == 0) {
+				max_levels.push(0);
+			}
+
+			var max_level = max_of_arr(max_levels);
+			return max_level + 1;
+		}
+
+		function draw_tree(ctx, text, x, y) {
+			var current_level = 0;
+			var max_child = get_max_child(text);
+			console.log(max_child);
+			var max_level = get_max_level(text);
+			console.log(max_level);
+
+			draw_tree_impl(ctx, text, x, y, current_level, max_child, max_level);	
+		}
+
+		function print_tree() {
+			// 获取要画的树的内容
+			var tmp = $('input[name=tree_content]').val();
+
+			// 删除原来的画布
+			$('#tree_wrapper canvas').remove();
+
+			// 计算并添加新的画布
+			var container = $('#tree_wrapper');
+			var K = get_max_child(tmp);
+			var L = get_max_level(tmp);
+			var Wmax = (Math.pow(K, L) * 2 - 1) * G.KEY_WIDTH;
+			var canvasWidth = Wmax+40;
+			var canvasHeight = L * G.LEVEL_HEIGHT + 20;
+			container.append("<canvas id='tree_canvas' width='"+canvasWidth+"' height='"+canvasHeight+"'></canvas>");
+			var canvas = document.getElementById('tree_canvas');
+			var ctx = canvas.getContext('2d');
+
+			// 画出来
+			draw_tree(ctx, tmp, canvasWidth/2 , 10);
+		}
+
+		function setup_tree(expr, w, h) {
+			$(expr).append("<input name='tree_content'/><input type='button' name='draw' value='绘制'/><br/><div id='tree_wrapper'><canvas></canvas></div>");
+
+			$('#tree_wrapper').css({
+				width : w,
+				height : h,
+				overflow : 'auto'
+			});
+
+			// 测试用的
+			var tmp0 = '((1 2 3) 4 (1 2 3) 5 (1 2 3) 6 (1 2 3))';
+			var tmp1 = '( '+ tmp0 + ' 4 ' + tmp0 + ' 5 ' + tmp0 + ' 6 ' + tmp0 + ')';
+			var tmp = '( '+ tmp1 + ' 4 ' + tmp1 + ' 5 ' + tmp1 + ' 6 ' + tmp1 + ')';
+			$('input[name=tree_content]').val(tmp);
+			// 测试用的
+
+			$('input[name=draw]').click(print_tree);
+		}
+
+		$(document).ready(function() {
+			setup_tree('#tree', 500, 300);
+		});
+	</script>
+</head>
+<body>
+	<div id="tree">
+	</div>
+</body>

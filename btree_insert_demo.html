@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh_CN.utf8">
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+	<script src="http://libs.baidu.com/jquery/1.9.0/jquery.js"></script>
+	<script type="text/javascript">
+
+		MAX_KEY = 3;
+
+		var BTNode = {
+			create : function(isLeaf, nkeys, keys, childs) {
+				var node = {};
+				node.leaf = isLeaf;
+				node.keys = keys;
+				node.childs = childs;
+				node.nkeys = nkeys;
+				return node; 
+			}
+		};
+
+		var btree_split_demo = {
+			canvasId : 'btree_split_demo',
+			nodes : [],
+
+			init : function(id) {
+				this.state = 0;
+				$('#'+id).append("<canvas id='"+ this.canvasId + "'" +
+					" width='300' height='150px'></canvas>");
+				this.canvas = document.getElementById(this.canvasId);
+				this.context = this.canvas.getContext('2d');
+				this.setupNodes();
+				this.redraw();
+			},
+
+			setupNodes : function() {
+				this.nodes = [];
+				var nodes = this.nodes;
+				var nleft = BTNode.create(true, MAX_KEY,[1,2,4], []);
+				var nright = BTNode.create(true, MAX_KEY,[15,17,20], []);
+				var nroot = BTNode.create(false, MAX_KEY, [8], [nleft, nright]);
+				nodes.push(nroot);
+			},
+
+			drawBackgroud : function() {
+				this.context.fillStyle = '#b9b9b9';
+				var w = $('#'+this.canvasId).width();
+				var h = $('#'+this.canvasId).height();
+				this.context.fillRect(0, 0, w, h);
+			},
+
+			drawNode : function(node, x, y) {
+				var ctx = this.context;
+				// 1. draw root
+				ctx.fillStyle = '#10a697';
+				ctx.fillRect(x, y, 10*(2*MAX_KEY+1), 30);
+
+				var kx = 0, ky = y+20;
+				for (var i = 0, k; i < node.keys.length; i++) {
+					k = node.keys[i] + ''; // key是整数
+					kx = x + (2*(i+1)-1) * 10;
+					ctx.strokeText(k, kx, ky);
+				}
+				// 2. draw and line to child
+				if (node.childs.length == 0) 
+					return ;
+
+				var rectWidth = 10 * (2 * MAX_KEY + 1);
+				var childRegionWidth = (node.keys.length+1) * rectWidth + 
+					(node.keys.length-1) * 10;
+				var offsetX = x - (childRegionWidth/2-rectWidth/2);	
+
+				var offsetY = y + 30 + 10; /* plus height plus gaps */
+				for (var i = 0; i < node.childs.length; i++) {
+					var c = node.childs[i];
+					if (!c) {
+						offsetX += rectWidth + 10; /* plus gaps */
+						continue;
+					}
+
+					this.drawNode(c, offsetX, offsetY);
+
+					// line to child	
+					var ptKey={x:0,y:0}, ptChild = {x:0,y:0};
+					ptKey.x = x + (2*(i+1)-1) * 10 - 10/2;
+					ptKey.y = y + 20;
+
+					ptChild.x = offsetX + (rectWidth/2);
+					ptChild.y = y + 30 + 10;
+					ctx.beginPath();
+					ctx.moveTo(ptKey.x, ptKey.y);
+					ctx.lineTo(ptChild.x, ptChild.y);
+					ctx.stroke();
+
+					offsetX += rectWidth + 10; /* plus gaps */
+				}
+
+			},
+
+			drawNodes : function() {
+				var offsetX = 100, offsetInc = 100, offsetY = 10;
+				for (var i = 0; i < this.nodes.length; i++) {
+					var node = this.nodes[i];
+
+					this.drawNode(node, offsetX, offsetY);
+
+					offsetX += offsetInc;
+				}
+			},
+
+			redraw : function() {
+				this.drawBackgroud();
+				this.drawNodes();
+			},
+
+			actionAddNewNode : function () {
+				this.nodes.push(BTNode.create(true, MAX_KEY, [], []));
+				this.redraw();
+				this.drawText('添加一个新的节点');
+			},
+
+			actionMoveElement : function() {
+				this.nodes[1].keys = [4];	
+				this.redraw();
+				this.drawText('移动中间往右的元素到新的节点');
+			},
+
+			actionAjustParent : function() {
+				this.nodes[0].keys = ['*', 8];	
+				var childs = this.nodes[0].childs;
+				this.nodes[0].childs = [childs[0], 0, childs[1]];
+				this.redraw();
+				this.drawText('将父节点中的指定节点后的元素后移一位');
+			},
+
+			actionUpKey : function() {
+				var root = this.nodes[0];
+				root.keys = [2, 8];
+				this.redraw();
+				this.drawText('将子节点的中间关键字上移到父节点');
+			},
+
+			actionAddChild : function() {
+				var root = this.nodes[0];
+				var childs = root.childs;	
+				root.childs = [childs[0], this.nodes[1], childs[2]];
+				this.nodes.pop();
+				this.redraw();
+				this.drawText('将新建的节点添加到父节点对应的孩子节点位置');
+			},
+
+			actionShrink : function() {
+				this.nodes[0].childs[0].keys.pop();
+				this.nodes[0].childs[0].keys.pop();
+				this.redraw();
+				this.drawText('减小节点的大小');
+			},
+
+			drawText : function(text) {
+				this.context.strokeText(text, 10, 100);
+			},
+
+			step : function() {
+				switch (this.state) {
+				case -1:
+					this.setupNodes();
+					this.state++;
+					this.redraw();
+					break;
+				case 0:
+					this.actionAddNewNode();
+					this.state++;
+					break;
+				case 1:
+					this.actionMoveElement();
+					this.state++;
+					break;
+				case 2:
+					this.actionAjustParent();
+					this.state++;
+					break;
+				case 3:
+					this.actionUpKey();
+					this.state++;
+					break;
+				case 4:
+					this.actionAddChild();
+					this.state++;
+					break;
+				case 5:
+					this.actionShrink();
+					this.state = -1;
+					break;
+				};
+				setTimeout(function() {
+					btree_split_demo.step();
+				}, 5000);
+			}
+		};
+
+		$(document).ready(function() {
+			btree_split_demo.init('btree_split_demo_container');
+			setTimeout(function() {
+				btree_split_demo.step();
+			}, 5000);
+		});
+
+	</script>
+</head>
+<body>
+	<div id="btree_split_demo_container"></div>
+</body>
+</html>
