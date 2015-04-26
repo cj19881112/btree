@@ -94,9 +94,6 @@
 			var Wmax = (Math.pow(K, max_level) * 2 - 1) * G.KEY_WIDTH;
 			var W = Wmax / Math.pow(K, level);
 
-			var child_offset_inc = W / K;
-			var first_child_offset = x - (W/2 - child_offset_inc/2);
-
 			if (text[0] != '(') {
 				error_abort('tag not start with (| ' + text);
 				return ;		
@@ -113,6 +110,15 @@
 			draw_box(ctx, x, y_offset(level), box_width, box_height);
 
 			var elts = split_child(text.substr(1, text.length-2));
+
+			var child_count = 0;
+			for (var i = 0; i < elts.length; i++) {
+				if (elts[i][0] == '(')
+					child_count++;
+			}
+			//var child_offset_inc = W / K;
+			var child_offset_inc = W / child_count;
+			var first_child_offset = x - (W/2 - child_offset_inc/2);
 
 			for (var i=0, key_idx=0, node_idx=0; i < elts.length; i++) {
 				if (elts[i][0] == '(') {
@@ -226,10 +232,10 @@
 			});
 
 			// 测试用的
-			var tmp0 = '((1 2 3) 4 (1 2 3) 5 (1 2 3) 6 (1 2 3))';
-			var tmp1 = '( '+ tmp0 + ' 4 ' + tmp0 + ' 5 ' + tmp0 + ' 6 ' + tmp0 + ')';
-			var tmp = '( '+ tmp1 + ' 4 ' + tmp1 + ' 5 ' + tmp1 + ' 6 ' + tmp1 + ')';
-			$('input[name=tree_content]').val(tmp);
+			//var tmp0 = '((1 2 3) 4 (1 2 3) 5 (1 2 3) 6 (1 2 3))';
+			//var tmp1 = '( '+ tmp0 + ' 4 ' + tmp0 + ' 5 ' + tmp0 + ' 6 ' + tmp0 + ')';
+			//var tmp = '( '+ tmp1 + ' 4 ' + tmp1 + ' 5 ' + tmp1 + ' 6 ' + tmp1 + ')';
+			//$('input[name=tree_content]').val(tmp);
 			// 测试用的
 
 			$('input[name=draw]').click(print_tree);
