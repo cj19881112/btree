@@ -5,6 +5,7 @@
 #include <string.h>
 #include <time.h>
 
+#define UNUSED(p) ((void*)p)
 #define LEFT_KEY_OF_CHILD(i) 	(i-1)
 #define RIGHT_KEY_OF_CHILD(i) 	(i)
 #define LEFT_CHILD_OF_KEY(i)	(i)
@@ -26,6 +27,14 @@ alloc_node(int max_key, int max_child)
 	memset((void*)r->child, 0, sizeof (void**) * max_child);
 
 	return r;
+}
+
+static void
+release_node(struct bnode_s *r)
+{
+	free(r->child);
+	free(r->key);
+	free(r);
 }
 
 static void	
@@ -151,7 +160,7 @@ btree_insert(struct btree_s *tree, int k)
 void 
 left_rotate(struct btree_s *tree, struct bnode_s *r, int key_pos)
 {
-
+	UNUSED(tree);
 	struct bnode_s *right_node = r->child[RIGHT_CHILD_OF_KEY(key_pos)];
 	struct bnode_s *left_node = r->child[LEFT_CHILD_OF_KEY(key_pos)];
 
@@ -178,7 +187,7 @@ left_rotate(struct btree_s *tree, struct bnode_s *r, int key_pos)
 void 
 right_rotate(struct btree_s *tree, struct bnode_s *r, int key_pos)
 {
-
+	UNUSED(tree);
 	struct bnode_s *right_node = r->child[RIGHT_CHILD_OF_KEY(key_pos)];
 	struct bnode_s *left_node = r->child[LEFT_CHILD_OF_KEY(key_pos)];
 
@@ -206,6 +215,7 @@ right_rotate(struct btree_s *tree, struct bnode_s *r, int key_pos)
 void 
 merge_child(struct btree_s *tree, struct bnode_s *r, int key_pos)
 {
+	UNUSED(tree);
 	struct bnode_s *left_node = r->child[LEFT_CHILD_OF_KEY(key_pos)];
 	struct bnode_s *right_node = r->child[RIGHT_CHILD_OF_KEY(key_pos)];
 
@@ -237,6 +247,8 @@ merge_child(struct btree_s *tree, struct bnode_s *r, int key_pos)
 		r->child[i] = r->child[i+1];
 	}
 	r->nkeys--;
+
+	release_node(right_node);
 }
 
 static int
@@ -318,9 +330,9 @@ btree_remove_impl(struct btree_s *tree, struct bnode_s *r, int k)
 			} else {
 				/* 都不够，需要合并 */
 				merge_child(tree, r, i);
-				if (r->nkeys == 0) { //?????
-					/* FIXME : free node */
+				if (r->nkeys == 0) { 
 					tree->root = r->child[0];
+					release_node(r);
 					btree_remove_impl(tree, tree->root, k);
 				} else {
 					btree_remove_impl(tree, r->child[i], k);
@@ -359,13 +371,12 @@ btree_remove_impl(struct btree_s *tree, struct bnode_s *r, int k)
 				} else if (remove_child_pos+1 <= r->nkeys) {
 					merge_pos = RIGHT_KEY_OF_CHILD(remove_child_pos);
 				} else {
-					printf("%d %d %d [%d]\n", remove_child_pos-1, remove_child_pos+1, r->nkeys, k);
 					assert(0 && "damn");
 				}
 				merge_child(tree, r, merge_pos);
 				if (r->nkeys == 0) {
-					/* FIXME : free node */
 					tree->root = r->child[0];
+					release_node(r);
 					btree_remove_impl(tree, tree->root, k);
 				} else {
 					btree_remove_impl(tree, r->child[merge_pos], k);
@@ -381,10 +392,22 @@ btree_remove(struct btree_s *tree, int k)
 	btree_remove_impl(tree, tree->root, k);
 }
 
+static void
+btree_destroy_impl(struct bnode_s *r)
+{
+	if (!r->leaf) {
+		int i;
+		for (i = 0; i < r->nkeys+1; i++) {
+			btree_destroy_impl(r->child[LEFT_CHILD_OF_KEY(i)]);
+		}
+	}
+	release_node(r);
+}
+
 void 
 btree_destroy(struct btree_s *tree)
 {
-
+	btree_destroy_impl(tree->root);
 }
 
 static void 
@@ -465,6 +488,8 @@ TEST(BTree, Insert)
 	}
 
 	btree_dump(&tree);
+
+	btree_destroy(&tree);
 }
 
 TEST(BTree, Remove)
@@ -487,6 +512,8 @@ TEST(BTree, Remove)
 
 	btree_remove(&tree, 8);
 	btree_dump(&tree);
+
+	btree_destroy(&tree);
 }
 
 TEST(BTree, RemoveALot)
@@ -504,6 +531,8 @@ TEST(BTree, RemoveALot)
 	}
 
 	btree_dump(&tree);
+
+	btree_destroy(&tree);
 }
 
 TEST(BTree, RemoveALot1)
@@ -524,7 +553,7 @@ TEST(BTree, RemoveALot1)
 		btree_remove(&tree, i);
 	}
 
-	btree_check(tree.root);
+	btree_destroy(&tree);
 }
 
 #endif

@@ -10,7 +10,7 @@ struct bnode_s {
 };
 
 struct btree_s {
-	bnode_s *root;
+	struct bnode_s *root;
 	int t;
 	int min_key_nr;
 	int max_key_nr;
